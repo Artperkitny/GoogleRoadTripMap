@@ -1,0 +1,316 @@
+<!doctype html>
+
+<!--
+Notes 
+ 
+ - Hosting
+	- forward url (artperkitny.com)
+	- host on new EC2
+	- keep old secondary version on old EC2
+		- backup database
+		- use for pre-launch features, testing, ect... 
+ 
+ - Multiple Types 
+	- Types:
+		- Ping (no photos), blue
+		- Quick (one photo), yellow
+		- Photo (multiple photos), red
+		- Write-up (text entry, may contain photos in addition),green
+		- Activity (interesting, uncanny thing done), purple
+		- Video (one or more videos), black
+		- Slept (place slept/rested that day), white
+		- Airbnb (Airbnb stay only), Airbnb marker
+		- Start (Nulas house), Home icon
+		- Current (Most recent location), whatever + radial ripples animation 
+		- 
+ 
+ - Update Geo Applet
+	- add photo option
+	- add types selection
+	- auto-gen folder with tag
+	- address to lat/long features
+	- select by map feature
+	- odometer reading (optional)
+	- Reverse Geo-Coding 
+		- use to seperate lat/long pairs by territory 
+	- Validation 
+	- 
+
+ - Web UI
+	- Photo viewer
+	- Mobile ready
+	- Tags may be too long for label
+	- Center on last location on load
+	- timestamp convert to time based on time-zone
+	- place/type sorter (search function) 
+	- last updated 
+	- page view counter/ ip logging 
+	- social media integration (buttons,comments, likes, ect...)
+	- marker type key 
+	- Interesting data on places
+		- Linear miles from home
+		- Day of trip
+		- Territory
+		- Photos taken
+		- Weather
+		- Altitude
+		- 
+	- Zoom on click label
+	- Countdown to departure onload  
+	- Icon right of label based on type (content of the type, write = document, picture = photo, ect...) 
+	- Hierarchical search by territory -> city -> place 
+	- Active resizing 
+	- 
+
+ - Other
+	- framework.html file
+	- Resume (Price table style)
+	- Projects (Github)
+	- Dedicated media page
+	- Oculus rift Janus VR support 
+	- Milestones page
+	- About me reveal tab
+		- Who, what, where, when and why?
+		- Car?
+		- Goals?
+		- ect...
+	- Statistical graphs (based of data in maps app)
+	- 
+-->
+
+<html class="no-js" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Art | Perkitny</title>
+    <link rel="stylesheet" href="css/foundation.css" />
+	<link rel="stylesheet" href="img/foundation-icons/foundation-icons.css">
+	<link rel="shortcut icon" href="https://cdn3.iconfinder.com/data/icons/countries-and-continents/512/North_America-256.png">
+    <link rel="stylesheet" type="text/css" href="slick/slick.css"/>
+    <link rel="stylesheet" type="text/css" href="slick/slick-theme.css"/>
+    <script src="js/vendor/modernizr.js"></script>
+	<script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDsz1Bvlh_Zb7tKCMB_JUgOgQGBk8VQ3Q8&sensor=FALSE"></script>
+  </head>
+  <body>
+	<div class="off-canvas-wrap" data-offcanvas>
+	  <div class="inner-wrap">
+	  
+<!-- Reveal Modal -->
+		<div id="myModal" class="reveal-modal" data-reveal>
+		  <h2>My travel map</h2>
+		  <p>This map is a collection of all the places I have visited during my journey to California. I will be updating it daily so make sure to check in often!</p>
+		  <a class="close-reveal-modal">&#215;</a>
+		</div>
+		
+		<div id="info" class="reveal-modal" data-reveal>
+		</div>
+		
+<!-- Navigation Bar -->	
+		<nav class="tab-bar">
+		  <section class="left-small">
+			<a class="left-off-canvas-toggle menu-icon" href="#"><span></span></a>
+		  </section>
+		  <section class="middle tab-bar-section">
+			<h1 class="title">Trip Map <a href="#" data-reveal-id="myModal"><i class="fi-info"></i></a></h1>
+		  </section>
+		  <a class="exit-off-canvas"></a>
+		</nav>
+		
+<!-- Menu Format -->
+		<aside class="left-off-canvas-menu">
+		  <div class="row">
+			<ul class="off-canvas-list">
+			<li id="Places">
+				<label>Places</label>
+			</li>
+		  </div>
+		  </ul>
+		</aside>
+		
+ <!-- Content -->
+		<div id="googleMap"class="small-12 columns"></div>
+		
+	   </div>
+	</div>
+	
+    <script src="js/vendor/jquery.js"></script>
+    <script src="js/foundation.min.js"></script>
+    <script type="text/javascript" src="slick/slick.js"></script>
+    <script>
+		$(document).foundation()
+		//Vars
+			var map
+			var myCenter=new google.maps.LatLng(39.754435, -96.390960)
+			var infos = []
+			var bounds = new google.maps.LatLngBounds();
+			var gmarkers = []
+			var loadingImg = "<img src='img/loading.gif' />"
+			
+		$(document).ready(function(){
+			Height = $( window ).height()
+			Height_Header = $("#header").height()
+			$("#googleMap").css("height",Height-Height_Header)
+			initialize()
+		});
+		
+		function initialize(){
+			var mapProp = {
+			  center:myCenter,
+			  zoom:25,
+			  scrollwheel: true,
+			  mapTypeControl: true,
+			  streetViewControl: false,
+			  draggable: true,
+			  disableDefaultUI: true,
+			  mapTypeId:google.maps.MapTypeId.ROADMAP   
+			  };
+			  
+			map=new google.maps.Map(document.getElementById("googleMap"),mapProp)
+			 
+			//Grab geo data from table
+				$.ajax({
+					url:"Geo.php",
+					dataType: "json",
+					success:function(data){
+						locations = data
+						setMarkers(map,locations)
+					}
+				});
+		}
+		
+		function setMarkers(map,locations){
+
+			var marker, i
+
+			for (i = 0; i < locations.length; i++){  
+				 var time = locations[i].Timestamp
+				 var latitude = locations[i].Lat
+				 var longitude = locations[i].Long
+				 var tag =  locations[i].Name
+				 var type = locations[i].Type
+				 var marker
+				 
+				 switch(type){
+					case "Ping":
+
+						break;
+					
+					case "Phone":
+
+						break;
+						
+					case "Album":
+
+						break;
+						
+					case "Text":
+
+						break;
+						
+					case "Video":
+
+						break;
+						
+					case "Activity":
+
+						break;
+						
+					case "Motel":
+
+						break;
+						
+					case "Airbnb":
+
+						break;
+						
+					case "Camp":
+
+						break;
+					 
+					 
+					 case "Current":
+
+						break;
+					 
+					 
+					 case "Start":
+
+						break;
+					 }
+				 
+				 latlngset = new google.maps.LatLng(latitude, longitude)
+
+				  var marker = new google.maps.Marker({  
+						  map: map, title: tag , position: latlngset, animation: google.maps.Animation.DROP  
+						});
+						
+						map.setCenter(marker.getPosition())
+						bounds.extend(marker.position)
+						
+					var content = "Time: "+unixConvert(time)+"<br> Location:"+tag
+					var infowindow = new google.maps.InfoWindow()
+						
+					   
+				google.maps.event.addListener(marker,'click', (function(marker,content,infowindow){ 
+						return function() {
+						
+						/* close the previous info-window */
+					   closeInfos();
+						
+						   infowindow.setContent(content);
+						   infowindow.open(map,marker);
+						
+						/* keep the handle, in order to close it on next click event */
+				   infos[0]=infowindow;
+						
+						};
+					})(marker,content,infowindow)); 
+				 gmarkers.push(marker);
+				 var marker_num = gmarkers.length-1;
+				 var plcBtn = "<li onclick='map.panTo(gmarkers["+marker_num+"].getPosition())' onmouseover='gmarkers["+marker_num+"].setAnimation(google.maps.Animation.BOUNCE)' onmouseout='gmarkers["+marker_num+"].setAnimation(null)'><a>"+tag+"<i data-reveal-id='info' onclick='getPhotos(gmarkers["+marker_num+"].getTitle())' class='fi-photo right'></i></a></li>"
+				 $("#Places").append(plcBtn)
+			}
+			map.fitBounds(bounds);
+		}
+		
+		function closeInfos(){
+ 
+		   if(infos.length > 0){
+		 
+			  /* detach the info-window from the marker ... undocumented in the API docs */
+			  infos[0].set("marker", null);
+		 
+			  /* and close it */
+			  infos[0].close();
+		 
+			  /* blank the array */
+			  infos.length = 0;
+		   }
+		}
+		
+		function unixConvert(unixtimestamp){
+			var dt=eval(unixtimestamp*1000);
+			var myDate = new Date(dt);
+			return(myDate.toLocaleString());
+		}
+		
+		function getPhotos(tag){
+			$("#info").empty()
+			$.ajax({
+					url:"photos.php",
+					data: {data:JSON.stringify(tag)},
+					success:function(data){
+						$("#info").empty()
+						$("#info").html(data).done(function(){
+                            $('.demo').slick({
+                            arrows: true,
+                            dots: true,
+                        });
+                        })
+					}
+				})
+		}
+    </script>
+  </body>
+</html>
+
